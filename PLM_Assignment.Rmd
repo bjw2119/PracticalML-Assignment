@@ -1,0 +1,68 @@
+---
+title: "PLM Prediction Assignment"
+author: "bjw2119"
+date: "January 30, 2016"
+output: html_document
+---
+
+This project uses data from the Weight Lifting Exercise Dataset compiled by the Human Activity Recognition project done by Wallace Ugulino, Eduardo Velloso, and Hugo Fuks. For more information, see the paper: Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013. 
+
+This project will attempt to construct a model to predict if the wearer of a number of sensors performed a weight lifting exercise correctly or incorrectly. The possible outcomes were that the exercise could be done in the following manner: according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E). The outcomes are labeled as "$classe" in the dataset.
+
+Initial loading of the datasets is done so as to set aside the "testing" dataset as a validation dataset, and the "training" dataset is further partitioned to be a training dataset and a testing dataset, so that the model may be tested before it is used on the final validation dataset.
+```{r, cache=TRUE}
+library(caret)
+library(rpart)
+#Load data from csv files
+training<- read.csv("pml-training.csv")
+validation<- read.csv("pml-testing.csv")
+set.seed(123)
+#Partition training data for a testing set
+inTrain <- createDataPartition(training$classe, p=.7)[[1]]
+testing <- training[-inTrain,]
+trimTrain <- training[inTrain,]
+
+```
+
+Preliminary exploration of the data set on which the model is to be tested suggests that a high number of columns have no recorded value for the observation. These columns should be removed in an initial step to reduce the possible number of predictors
+```{r}
+head(validation)
+```
+
+We will remove columns of all NA and the index column X. This leaves us with a set of 58 predictors with useful values across the datasets.
+
+```{r, cache=TRUE}
+#Construct index of columns with all NAs in validation set
+nacols<- which(nacols<- sapply(validation, function(x)all(is.na(x))))
+#Remove all NA columns from the three sets
+trimTrain<- trimTrain[,-nacols]
+trimTesting<- testing[,-nacols]
+trimValidation<- validation[,-nacols]
+
+#remove x
+trimTrain<-trimTrain[,-1]
+trimTesting<- trimTesting[,-1]
+trimValidation<- trimValidation[,-1]
+```
+
+
+
+
+Next, a 10-fold cross-validated random forest model (sample sizes ~12363) will be produced from the training data, with accuracly being used to select the optimal model. Examining the model, we see that it has an accuracy of .999 and a concordance measure Kappa of .999, suggesting high accuracy in the training dataset. 
+```{r, cache=TRUE}
+trainMod<- train(classe~., method="rf", data=trimTrain)
+trainMod
+```
+
+Applying the random forest model to our testing set, we observe accuracy and Kappa levels similar to those in the training dataset, both at .999. This would suggest that overfitting in the model is not indicated.
+```{r, cache=TRUE}
+testPreds<- predict(trainMod, trimTesting)
+confusionMatrix(testPreds, trimTesting$classe)
+```
+
+Finally, the model is applied to the validation dataset of 20 observations. Submission to the Coursera quiz indicated that all observations were matched to their class appropriately.
+```{r, cache=TRUE}
+validPreds<- predict(trainMod, trimValidation)
+```
+
+Further exploratory data analysis or consolidation through PCA could have been done to further reduce the number of predictors and limit the draw on computational resources. Nevertheless, the accuracy of the initial model was sufficient for the validation set.
